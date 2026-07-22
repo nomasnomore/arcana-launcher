@@ -71,6 +71,10 @@ public class GlyphView extends View {
         tileStroke.setStyle(Paint.Style.STROKE);
         tileStroke.setStrokeWidth(Ui.dp(c, 1.5f));
         tileStroke.setColor(0x40FFFFFF);
+        if (Theme.get().painterly) {
+            tilePaint.setColor(0xF01A1410);        // warm ink so white glyphs read
+            tileStroke.setStrokeWidth(Ui.dp(c, 1.8f));
+        }
         slashPaint.setColor(0xFFFFFFFF);
         fill.setColor(0xFFF2F5FA);
         stroke.setColor(0xFFF2F5FA);
@@ -131,7 +135,7 @@ public class GlyphView extends View {
         float tx0 = (w - tile) / 2f;
         float ty0 = Ui.dp(ctx, 2);
 
-        // tile: jagged torn shape in P5, skewed elsewhere
+        // tile: jagged torn shape in P5, rough painted square in Ivory, skewed elsewhere
         p.reset();
         if (Theme.get().shapeStyle == 2) {
             int sd = (label.hashCode() ^ 0x5A5A) & 0x7FFFFFFF;
@@ -149,6 +153,11 @@ public class GlyphView extends View {
             }
             p.lineTo(tx0 + jag(sd + 70, jj), ty0 + tile / 2f);
             p.close();
+        } else if (Theme.get().shapeStyle == 3) {
+            // clean, lean rounded tile — no border; the character comes from paint
+            float rad = Ui.dp(ctx, 8);
+            r.set(tx0, ty0, tx0 + tile, ty0 + tile);
+            p.addRoundRect(r, rad, rad, Path.Direction.CW);
         } else {
             p.moveTo(tx0 + skew, ty0);
             p.lineTo(tx0 + tile, ty0);
@@ -157,17 +166,45 @@ public class GlyphView extends View {
             p.close();
         }
         c.drawPath(p, tilePaint);
-        tileStroke.setColor(press > 0.4f ? Theme.get().accentBright : 0x40FFFFFF);
-        c.drawPath(p, tileStroke);
+        // painterly tiles have no rim (lean); other themes keep the faint one.
+        // both flash the bright accent while pressed.
+        int baseStroke = Theme.get().painterly ? 0x00000000 : 0x40FFFFFF;
+        tileStroke.setColor(press > 0.4f ? Theme.get().accentBright : baseStroke);
+        if (!(Theme.get().painterly && press <= 0.4f)) c.drawPath(p, tileStroke);
 
-        // white slash accent across the top-left corner
-        p.reset();
-        p.moveTo(tx0 + skew - Ui.dp(ctx, 2), ty0);
-        p.lineTo(tx0 + skew + Ui.dp(ctx, 12), ty0);
-        p.lineTo(tx0 + Ui.dp(ctx, 4), ty0 + Ui.dp(ctx, 16));
-        p.lineTo(tx0 - Ui.dp(ctx, 2), ty0 + Ui.dp(ctx, 10));
-        p.close();
-        c.drawPath(p, slashPaint);
+        if (Theme.get().shapeStyle == 3) {
+            // Metaphor: a vermilion paint dab in the top-left + a gold fleck,
+            // instead of the clean white slash
+            int[] splat = Theme.get().splat;
+            if (splat == null) splat = Theme.IVORY_SPLAT;
+            p.reset();
+            p.moveTo(tx0 - Ui.dp(ctx, 3), ty0 + Ui.dp(ctx, 3));
+            p.lineTo(tx0 + Ui.dp(ctx, 17), ty0 - Ui.dp(ctx, 2));
+            p.lineTo(tx0 + Ui.dp(ctx, 9), ty0 + Ui.dp(ctx, 15));
+            p.lineTo(tx0 - Ui.dp(ctx, 4), ty0 + Ui.dp(ctx, 12));
+            p.close();
+            slashPaint.setColor(splat[1]);        // vermilion
+            c.drawPath(p, slashPaint);
+            // teal under-hint peeking above the dab
+            slashPaint.setColor(splat[0]);
+            slashPaint.setAlpha(0x99);
+            c.drawCircle(tx0 + Ui.dp(ctx, 13), ty0 + Ui.dp(ctx, 2), Ui.dp(ctx, 3), slashPaint);
+            slashPaint.setAlpha(0xFF);
+            // gold speck at the tile's bottom-right
+            slashPaint.setColor(Theme.get().filigree);
+            c.drawCircle(tx0 + tile - Ui.dp(ctx, 8), ty0 + tile - Ui.dp(ctx, 7),
+                    Ui.dp(ctx, 2.4f), slashPaint);
+            slashPaint.setColor(0xFFFFFFFF);      // restore for other themes/reuse
+        } else {
+            // white slash accent across the top-left corner
+            p.reset();
+            p.moveTo(tx0 + skew - Ui.dp(ctx, 2), ty0);
+            p.lineTo(tx0 + skew + Ui.dp(ctx, 12), ty0);
+            p.lineTo(tx0 + Ui.dp(ctx, 4), ty0 + Ui.dp(ctx, 16));
+            p.lineTo(tx0 - Ui.dp(ctx, 2), ty0 + Ui.dp(ctx, 10));
+            p.close();
+            c.drawPath(p, slashPaint);
+        }
 
         // glyph or app icon centered in the tile
         float cx = tx0 + tile / 2f;
@@ -202,7 +239,7 @@ public class GlyphView extends View {
         }
         c.drawText(lab, w / 2f, labelY, labelPaint);
         if (jp.length() > 0) {
-            jpPaint.setColor(0xCCBFE0FF);
+            jpPaint.setColor(Theme.get().painterly ? 0xCCE8C878 : 0xCCBFE0FF);
             jpPaint.setShadowLayer(Ui.dp(ctx, 3), 0, Ui.dp(ctx, 1), 0x99000000);
             c.drawText(jp, w / 2f, labelY + Ui.dp(ctx, 13), jpPaint);
         }

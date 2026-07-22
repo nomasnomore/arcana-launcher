@@ -32,6 +32,20 @@ public class MenuWordView extends View {
     private final Path slash = new Path();
     private final Path star = new Path();
     private final Path dotPath = new Path();
+    // bundled ink-splatter masks (tinted per selection), shared across all words
+    private final Paint splatPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final android.graphics.RectF splatRect = new android.graphics.RectF();
+    private static android.graphics.Bitmap[] SPLATS;
+    private static android.graphics.Bitmap splatMask(Context c, int i) {
+        if (SPLATS == null) SPLATS = new android.graphics.Bitmap[5];
+        if (SPLATS[i] == null) {
+            try {
+                SPLATS[i] = android.graphics.BitmapFactory.decodeStream(
+                        c.getAssets().open("splat" + (i + 1) + ".png"));
+            } catch (Exception ignored) {}
+        }
+        return SPLATS[i];
+    }
     private ValueAnimator anim;
     private final float wordH;
 
@@ -41,13 +55,15 @@ public class MenuWordView extends View {
         sub = subText;
         baseColor = color;
         wordH = Ui.dp(c, 56);
-        textPaint.setTypeface(Ui.tf(c));
-        textPaint.setTextSize(Ui.dp(c, 27));
+        boolean goth = Theme.get().blackletter;
+        textPaint.setTypeface(Ui.display(c));
+        // gothic is upright + wider than Barlow's condensed italic, so ease the size
+        textPaint.setTextSize(Ui.dp(c, goth ? 24f : 27f));
         subPaint.setTypeface(Ui.tfUpright(c));
         subPaint.setTextSize(Ui.dp(c, 11.5f));
-        // P4 sits straight; P5 leans hard; P3 leans a little
+        // P4 & Ivory sit straight; P5 leans hard; P3 leans a little
         int ss = Theme.get().shapeStyle;
-        setRotation(ss == 1 ? 0f : (ss == 2 ? -3f : -1.6f));
+        setRotation((ss == 1 || ss == 3) ? 0f : (ss == 2 ? -3f : -1.6f));
         slashPaint.setColor(0xFFFFFFFF);
         barPaint.setColor(0xFF06080C);
         linePaint.setStrokeWidth(Ui.dp(c, 1.5f));
@@ -145,6 +161,25 @@ public class MenuWordView extends View {
         return ((h % 1000) / 1000f - 0.5f) * 2f * amp;
     }
 
+    private static float frac(int seed) {
+        int h = (seed * 1103515245 + 12345) & 0x7FFFFFFF;
+        return (h % 1000) / 1000f;
+    }
+
+
+    /** Draws the word with an exaggerated oversized first letter (battle-menu drop cap). */
+    private void drawExaggerated(Canvas c, String text, float startX,
+                                 float baseY, float ts, int color) {
+        String first = text.substring(0, 1);
+        String rest = text.substring(1);
+        textPaint.setColor(color);
+        textPaint.setTextSize(ts * 1.5f);
+        float fw = textPaint.measureText(first);
+        c.drawText(first, startX, baseY, textPaint);
+        textPaint.setTextSize(ts);
+        c.drawText(rest, startX + fw * 0.92f, baseY, textPaint);
+    }
+
     /** P5 ransom-note lettering: per-letter tilt/scale, some in cut-out boxes. */
     private void drawRansom(Canvas c, Context ctx, String text,
                             float startX, float baseY, float ts, int color) {
@@ -233,6 +268,34 @@ public class MenuWordView extends View {
                         right - Ui.dp(ctx, 6), bot + Ui.dp(ctx, 9));
                 c.drawPath(slash, barPaint);
                 barPaint.setColor(0xFF06080C);
+            } else if (Theme.get().shapeStyle == 3) {
+                // Metaphor battle-menu: a big irregular ink smear (teal ghost +
+                // pink body) with arms, wide varied spatter, and hair filaments.
+                int[] splat = Theme.get().splat;
+                if (splat == null) splat = Theme.IVORY_SPLAT;
+                // real bundled ink-splatter mask, tinted: baby-blue ghost + pink core
+                android.graphics.Bitmap mask =
+                        splatMask(ctx, Math.abs(label.hashCode()) % 5);
+                if (mask != null) {
+                    float cy2 = (top + bot) / 2f;
+                    float wSp = (right - left) + Ui.dp(ctx, 170);   // big, exaggerated
+                    float hSp = wSp * mask.getHeight() / mask.getWidth();
+                    float lSp = left - Ui.dp(ctx, 74);
+                    // ghost (behind), offset up-left and a touch larger
+                    splatPaint.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                            (((int) (a * 0.62f)) << 24) | (splat[0] & 0xFFFFFF),
+                            android.graphics.PorterDuff.Mode.SRC_IN));
+                    float gx = lSp - Ui.dp(ctx, 16), gy = cy2 - hSp / 2f - Ui.dp(ctx, 12);
+                    splatRect.set(gx, gy, gx + wSp * 1.05f, gy + hSp * 1.05f);
+                    c.drawBitmap(mask, null, splatRect, splatPaint);
+                    // pink core
+                    splatPaint.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                            (a << 24) | (splat[1] & 0xFFFFFF),
+                            android.graphics.PorterDuff.Mode.SRC_IN));
+                    splatRect.set(lSp, cy2 - hSp / 2f, lSp + wSp, cy2 + hSp / 2f);
+                    c.drawBitmap(mask, null, splatRect, splatPaint);
+                    splatPaint.setColorFilter(null);
+                }
             } else {
                 float skew = Ui.dp(ctx, 10);
                 // P3: an electric cyan fringe slash sits behind the white one
@@ -271,15 +334,22 @@ public class MenuWordView extends View {
             }
         }
 
-        if (press > 0.3f) {
+        boolean painterly = Theme.get().painterly;
+        if (press > 0.3f && !painterly) {
             textPaint.clearShadowLayer();
         } else {
+            // painterly keeps a soft shadow so white text pops on the swipe
             textPaint.setShadowLayer(Ui.dp(ctx, 5), 0, Ui.dp(ctx, 2), 0xB3000000);
         }
-        int mainColor = lerpColor(baseColor, 0xFF06080C, press);
+        // Metaphor flips the selected word to bright ivory on the paint swipe;
+        // the others darken it on their light selection shape.
+        int pressedInk = painterly ? 0xFFFFF7E6 : 0xFF06080C;
+        int mainColor = lerpColor(baseColor, pressedInk, press);
         textPaint.setColor(mainColor);
         if (Theme.get().ransom) {
             drawRansom(c, ctx, label, tx, wordBase, ts, mainColor);
+        } else if (painterly && label.length() > 1) {
+            drawExaggerated(c, label, tx, wordBase, ts, mainColor);
         } else {
             c.drawText(label, tx, wordBase, textPaint);
         }
@@ -305,7 +375,7 @@ public class MenuWordView extends View {
             linePaint.setShader(null);
         }
 
-        subPaint.setColor(0xCCDCF2FF);
+        subPaint.setColor(painterly ? 0xCCFBE9C0 : 0xCCDCF2FF);
         subPaint.setShadowLayer(Ui.dp(ctx, 3), 0, Ui.dp(ctx, 1), 0x99000000);
         c.drawText(sub, tx + Ui.dp(ctx, 2), subBase, subPaint);
 

@@ -62,6 +62,9 @@ public class MainActivity extends Activity {
     private TextView weatherText;
     private CRTView crtView;
     private HalftoneView halftoneView;
+    private FiligreeView filigreeView;
+    private BulletinView bulletinView;
+    private android.view.GestureDetector homeGd;
     private boolean wasStopped = false;
     private CardButton walletCard;
     private boolean pickWallet = false;
@@ -136,6 +139,14 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         halftoneView.setOn(Theme.get().id == 2);
 
+        // gilt manuscript frame (Ivory Hour) — same layer treatment as halftone
+        filigreeView = new FiligreeView(this);
+        root.addView(filigreeView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // gilt corner ornament is opt-in — off by default (it fights the
+        // clock/media/dock which live in the screen corners)
+        filigreeView.setOn(Theme.get().id == 3 && prefs.flag("ivory_frame"));
+
         // CRT overlay sits on top of everything; passes touches through
         crtView = new CRTView(this);
         root.addView(crtView, new FrameLayout.LayoutParams(
@@ -200,6 +211,16 @@ public class MainActivity extends Activity {
         homeLayer.setPadding(Ui.dpi(this, 22), top + Ui.dpi(this, 14),
                 Ui.dpi(this, 22), bottom + Ui.dpi(this, 10));
         drawerLayer.setPadding(0, top + Ui.dpi(this, 10), 0, bottom);
+        if (filigreeView != null) {
+            int lft = 0, rgt = 0;
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets s = insets.getInsets(
+                        WindowInsets.Type.systemBars()
+                                | WindowInsets.Type.displayCutout());
+                lft = s.left; rgt = s.right;
+            }
+            filigreeView.setInsets(top, bottom, lft, rgt);
+        }
     }
 
     // ------------------------------------------------------------- home layer
@@ -293,11 +314,40 @@ public class MainActivity extends Activity {
         weatherText.setLetterSpacing(0.06f);
         weatherText.setShadowLayer(Ui.dp(this, 4), 0, Ui.dp(this, 1), 0x99000000);
         weatherText.setVisibility(View.GONE);
-        LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(
+        // weather row: the text + the inline mirrored "NEWS" feed bubble at its end
+        LinearLayout weatherRow = new LinearLayout(this);
+        weatherRow.setOrientation(LinearLayout.HORIZONTAL);
+        weatherRow.setGravity(Gravity.CENTER_VERTICAL);
+        weatherRow.setClipChildren(false);
+        LinearLayout.LayoutParams wrlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        wlp.topMargin = Ui.dpi(this, 6);
-        wlp.leftMargin = Ui.dpi(this, 6);
-        clockBox.addView(weatherText, wlp);
+        wrlp.topMargin = Ui.dpi(this, 6);
+        wrlp.leftMargin = Ui.dpi(this, 6);
+        clockBox.addView(weatherRow, wrlp);
+        weatherRow.addView(weatherText, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        bulletinView = new BulletinView(this);
+        bulletinView.setMirrored(true);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                Ui.dpi(this, 36), Ui.dpi(this, 42));
+        blp.leftMargin = Ui.dpi(this, 10);
+        blp.gravity = Gravity.CENTER_VERTICAL;
+        bulletinView.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { openFeed(); }
+        });
+        bulletinView.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override public boolean onLongClick(View v) {
+                pickCardKey = "feed_pkg";
+                enterPickCardAction();
+                toast("PICK YOUR FEED / NEWS APP");
+                return true;
+            }
+        });
+        // hidden by default now that swipe-right opens the feed; opt back in
+        bulletinView.setVisibility(
+                prefs.flag("feed_shown") ? View.VISIBLE : View.GONE);
+        weatherRow.addView(bulletinView, blp);
 
         defaultHint = new TextView(this);
         defaultHint.setTypeface(Ui.tf(this));
@@ -472,8 +522,8 @@ public class MainActivity extends Activity {
                 prefs.flag("wallet_hidden") ? View.GONE : View.VISIBLE);
         loadWalletIcon();
 
-        // ---- swipe up anywhere -> drawer ----
-        final android.view.GestureDetector gd = new android.view.GestureDetector(this,
+        // ---- home flings: up = drawer, down = recents, right = feed ----
+        homeGd = new android.view.GestureDetector(this,
                 new android.view.GestureDetector.SimpleOnGestureListener() {
                     @Override
                     public boolean onFling(MotionEvent e1, MotionEvent e2,
@@ -489,9 +539,10 @@ public class MainActivity extends Activity {
                         return false;
                     }
                 });
+        // consume empty-area taps so nothing falls through; flings are caught
+        // at the Activity level (dispatchTouchEvent) so they work over any child.
         homeLayer.setOnTouchListener(new View.OnTouchListener() {
             @Override public boolean onTouch(View v, MotionEvent e) {
-                gd.onTouchEvent(e);
                 return true;
             }
         });
@@ -603,6 +654,9 @@ public class MainActivity extends Activity {
         listView = new AppsListView(this);
         listView.setAdapter(adapter);
         FrameLayout listWrap = new FrameLayout(this);
+        // let the A-Z rail's magnify bulge draw left, over the list edge
+        listWrap.setClipChildren(false);
+        listWrap.setClipToPadding(false);
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         llp.topMargin = Ui.dpi(this, 8);
@@ -1160,6 +1214,11 @@ public class MainActivity extends Activity {
                 promptDialog("RENAME " + name, name, prefs.catJp(name),
                         new NameCallback() {
                     @Override public void onName(String newName, String kana) {
+                        // if the subtitle was just the auto one for the OLD name,
+                        // regenerate from the new name instead of keeping it stale
+                        if (kana.equals(Kana.toKatakana(name))) {
+                            kana = Kana.toKatakana(newName);
+                        }
                         prefs.renameCat(name, newName);
                         prefs.setCatJp(newName, kana);
                         rebuildDock();
@@ -1365,6 +1424,51 @@ public class MainActivity extends Activity {
         } catch (Exception ex) {
             toast("CAN'T LAUNCH");
         }
+    }
+
+    /**
+     * Opens the user's feed. Defaults to the Google app (which opens on its
+     * Discover tab — the real personalized feed); long-pressing the bulletin
+     * rebinds it to any app. Falls back to Google News on the web.
+     */
+    private void openFeed() {
+        String v = prefs.strVal("feed_pkg");
+        String pkg = (v != null && v.startsWith("app:"))
+                ? v.substring(4) : "com.google.android.googlequicksearchbox";
+        Intent web = new Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://news.google.com"));
+        startQuick(web, pkg);
+    }
+
+    private float swDownX, swDownY;
+    private long swDownT;
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent e) {
+        // Observe every touch at the Activity level so home gestures work no
+        // matter which child (clock, categories…) is under the finger.
+        if (!drawerOpen) {
+            if (homeGd != null) homeGd.onTouchEvent(e);   // up/down flings
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    swDownX = e.getRawX();
+                    swDownY = e.getRawY();
+                    swDownT = e.getEventTime();
+                    break;
+                case MotionEvent.ACTION_UP: {
+                    float dx = e.getRawX() - swDownX;
+                    float dy = e.getRawY() - swDownY;
+                    long dt = e.getEventTime() - swDownT;
+                    float slop = Ui.dp(this, 55);
+                    // a quick, mostly-horizontal rightward drag -> open the feed
+                    if (dx > slop && dx > Math.abs(dy) * 1.4f && dt < 700) {
+                        openFeed();
+                    }
+                    break;
+                }
+            }
+        }
+        return super.dispatchTouchEvent(e);
     }
 
     private void updateDots() {
@@ -1755,7 +1859,41 @@ public class MainActivity extends Activity {
                 toast("RELOADING…");
             }
         });
+        addRow(d, "REFRESH JP SUBTITLES", 0xFF06080C, new Runnable() {
+            @Override public void run() { regenerateSubtitles(); }
+        });
+        addRow(d, "FEED BUTTON: CHOOSE APP", 0xFF06080C, new Runnable() {
+            @Override public void run() {
+                pickCardKey = "feed_pkg";
+                enterPickCardAction();
+                toast("PICK YOUR FEED / NEWS APP");
+            }
+        });
+        final boolean feedShown = prefs.flag("feed_shown");
+        addRow(d, feedShown ? "HIDE FEED BUTTON" : "SHOW FEED BUTTON",
+                0xFF06080C, new Runnable() {
+            @Override public void run() {
+                prefs.setFlag("feed_shown", !feedShown);
+                if (bulletinView != null) {
+                    bulletinView.setVisibility(feedShown ? View.GONE : View.VISIBLE);
+                }
+                toast(feedShown ? "FEED BUTTON HIDDEN" : "FEED BUTTON SHOWN");
+            }
+        });
         d.show();
+    }
+
+    /**
+     * Re-runs the katakana transliterator over every category name, fixing
+     * subtitles left stale by a rename or an older dictionary. Overwrites
+     * hand-typed subtitles too — but those can be re-set from RENAME.
+     */
+    private void regenerateSubtitles() {
+        for (String name : prefs.catNames()) {
+            prefs.setCatJp(name, Kana.toKatakana(name));
+        }
+        rebuildDock();
+        toast("SUBTITLES REFRESHED");
     }
 
     private void showBackupMenu() {
@@ -1960,56 +2098,14 @@ public class MainActivity extends Activity {
         String pkg = prefs.strVal("wallet_pkg");
         if (pkg.length() == 0) pkg = "com.samsung.android.spay";
 
-        // Samsung Wallet: try to land on the quick-access card screen.
-        // Nothing here is documented, so fire a chain of known handles and
-        // fall back to the plain launch if the version has sealed them all.
-        if ("com.samsung.android.spay".equals(pkg)) {
-            // 1) samsungpay:// deep-link URIs (used in Samsung's own promos)
-            String[] uris = {
-                    "samsungpay://launch?action=quick_access",
-                    "samsungpay://quickaccess",
-                    "samsungpay://payment",
-                    "samsungpay://launch"
-            };
-            for (String u : uris) {
-                try {
-                    Intent vi = new Intent(Intent.ACTION_VIEW, Uri.parse(u));
-                    vi.setPackage(pkg);
-                    vi.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(vi);
-                    flashAccent();
-                    return;
-                } catch (Exception ignored) {}
-            }
-            // 2) known internal pay activities (older Wallet builds)
-            String[] candidates = {
-                    "com.samsung.android.spay.ui.list.SpayPayMainActivity",
-                    "com.samsung.android.spay.ui.SpayMainActivity"
-            };
-            for (String cls : candidates) {
-                try {
-                    Intent qi = new Intent(Intent.ACTION_MAIN);
-                    qi.setClassName(pkg, cls);
-                    qi.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(qi);
-                    flashAccent();
-                    return;
-                } catch (Exception ignored) {}
-            }
-            try {
-                Intent ai = new Intent("com.samsung.android.spay.action.QUICK_PAY");
-                ai.setPackage(pkg);
-                ai.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(ai);
-                flashAccent();
-                return;
-            } catch (Exception ignored) {}
-        }
-
+        // Reliable: open the wallet app exactly the way tapping its icon does.
+        // (The old samsung:// quick-access deep-links only fired once on a cold
+        // start and otherwise just flashed, so they're gone. This foregrounds
+        // the app every time; navigate to your card from there.)
         try {
             Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
             if (i == null) {
-                toast("WALLET APP NOT FOUND — SET IT VIA CLOCK MENU");
+                toast("NO WALLET APP SET — SETTINGS ▸ THE CARD ▸ PICK PAYMENT APP");
                 return;
             }
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -2176,9 +2272,11 @@ public class MainActivity extends Activity {
     private void applyCrt() {
         if (crtView == null) return;
         boolean on = prefs.flag("crt");
-        // amber tint in Yellow, faint red in Red, neutral in Blue
+        // amber tint in Yellow, faint red in Red, warm gilt in Ivory, neutral in Blue
         int id = Theme.get().id;
-        int tint = id == 1 ? 0x14C89000 : (id == 2 ? 0x16C80014 : 0x0C000000);
+        int tint = id == 1 ? 0x14C89000
+                : (id == 2 ? 0x16C80014
+                : (id == 3 ? 0x16B8892B : 0x0C000000));
         crtView.setEnabled2(on, on ? tint : 0);
     }
 

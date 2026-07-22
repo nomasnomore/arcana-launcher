@@ -7,7 +7,8 @@ package com.aaron.bluehour;
  * they read fine on any theme. Blue Hour's values are the exact originals
  * so it stays pixel-identical.
  *
- * ids: 0 = Blue Hour (P3), 1 = Yellow Hour (P4), 2 = Red Hour (P5).
+ * ids: 0 = Blue Hour (P3), 1 = Yellow Hour (P4), 2 = Red Hour (P5),
+ *      3 = Ivory Hour (Metaphor: ReFantazio).
  */
 public final class Theme {
 
@@ -43,8 +44,18 @@ public final class Theme {
     public final int darkHourWash = 0x2E2FBF7A;
     public final int darkHourText = 0xFF9BFFC8;
 
-    // shape language: 0 = sharp slash (P3/P5), 1 = rounded (P4)
+    // shape language: 0 = sharp slash (P3), 1 = rounded (P4),
+    // 2 = jagged (P5), 3 = painterly (Metaphor — paint-splash + filigree)
     public final int shapeStyle;
+
+    // Metaphor's illuminated-manuscript motifs (Ivory Hour only)
+    public boolean painterly = false;   // paint-splash selection behind words
+    public boolean blackletter = false; // gothic display typeface for words/clock
+    public int filigree = 0xFFD9B65A;   // gilt used for corner scrollwork
+    // paint-splash palette thrown behind the selected word:
+    // [0] bright baby-blue under-ghost, [1] main pink body, [2] white spray fleck
+    public int[] splat = null;
+    public static final int[] IVORY_SPLAT = {0xFF3EC5FF, 0xFFEC2E76, 0xFFF4EEE2};
 
     // dark ink for text on the white date tag (per theme)
     public int dateInk = 0xFF0A2FA8;
@@ -126,7 +137,31 @@ public final class Theme {
             2);           // jagged (P5)
     static { RED.dateInk = 0xFF8A0008; RED.ransom = true; }
 
-    private static final Theme[] ALL = {BLUE, YELLOW, RED};
+    // ---- IVORY HOUR (Metaphor: ReFantazio) — antique gold + teal on warm
+    // ivory, illuminated-manuscript filigree, and paint-splash selections.
+    // Text stays light (reads on any wallpaper); the identity comes from the
+    // gold structure, gothic type, and painterly accents.
+    public static final Theme IVORY = new Theme(3, "IVORY HOUR",
+            0xFFF0E6CC, 0xFFC9B688, 0xFF5C4B2C,   // parchment gradient (no-wallpaper bg)
+            0xFFC79A3B,   // accent (antique gold — rules, structure, progress)
+            0xFF23B5A4,   // accentBright (teal — phase text, EQ bars, energy)
+            0xFFC0392B,   // pop (vermilion — notif dots, high-contrast pop)
+            0xFFF6EFDD,   // textLight (warm ivory)
+            0xFFFBF4E2,   // catWord (pale gold-white)
+            0xFFE8C878,   // subtitle (soft gilt)
+            0xB3C79A3B,   // rule (gold)
+            0xFFF3EAD4,   // cardFace (cream drawer card)
+            0xFF1F8C80,   // cardAccent (teal diagonal)
+            3);           // painterly
+    static {
+        IVORY.dateInk = 0xFF215A4E;   // deep teal ink on the white date tag
+        IVORY.painterly = true;
+        IVORY.blackletter = true;
+        IVORY.filigree = 0xFFDDBB63;
+        IVORY.splat = IVORY_SPLAT;
+    }
+
+    private static final Theme[] ALL = {BLUE, YELLOW, RED, IVORY};
     private static Theme current = BLUE;
 
     public static Theme get() {

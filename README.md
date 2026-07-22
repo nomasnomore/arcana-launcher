@@ -10,7 +10,7 @@ Built and daily-driven on a Galaxy S23 Ultra. Sideloaded APK, not on the Play St
 
 ## Install (just want to use it)
 
-1. Download **[ArcanaLauncher-v13.6.apk](ArcanaLauncher-v13.6.apk)** (click the file above, then the download button).
+1. Download **[ArcanaLauncher-v15.14.apk](ArcanaLauncher-v15.14.apk)** (click the file above, then the download button).
 2. Copy it to your phone and open it. Android will ask you to allow installing from this source — say yes.
 3. Tap the home button and pick **Arcana Launcher** as your home app.
 
@@ -35,7 +35,7 @@ Swap the whole look instantly from one menu — your apps, categories, and layou
 - **Now-playing widget** — scrolling track title, animated EQ bars, live progress, prev/play/next, album art tinted to match the theme.
 - **The Arcana Card** — a face-down tarot card in the corner: hold to open your payment app, double-tap for flashlight, swipe up to jump to your last app. Pick any payment app and swap in your own card-face image.
 - **Category menu** — fully editable categories with bilingual English + katakana labels (auto-generated), drag-to-highlight navigation with haptics, and a pinned system-settings entry.
-- **App drawer** — type-to-search ranked by launch frequency, A–Z fast-scroll rail, hide apps, and long-press deep shortcuts.
+- **App drawer** — type-to-search ranked by launch frequency, an iOS-style **magnify A–Z fast-scroll rail** (letters bulge out around your finger so you always see where you are), hide apps, and long-press deep shortcuts.
 - 5-slot **dock**, each remappable, with custom icons auto-desaturated to match.
 - Notification dots and a "peek" popup, swipe-down for recents, full **backup/restore** to a file, and wallpaper safe-zone templates.
 
@@ -59,4 +59,4 @@ That runs: aapt (resources) → javac → dex → aapt add → zipalign → apks
 
 ## Credits & license
 
-Code is MIT licensed — see [LICENSE](LICENSE). The bundled **Barlow Condensed** font is under the SIL Open Font License 1.1 (see [assets/OFL.txt](assets/OFL.txt)). All UI art is hand-drawn in `Canvas`/`Paint`/`Path`; no Persona assets are included.
+Code is MIT licensed — see [LICENSE](LICENSE). The bundled **Barlow Condensed** and **Playfair Display** fonts are under the SIL Open Font License 1.1 (see [assets/OFL.txt](assets/OFL.txt) and [assets/OFL-Playfair.txt](assets/OFL-Playfair.txt)). All UI art is hand-drawn in `Canvas`/`Paint`/`Path`; no Persona assets are included.

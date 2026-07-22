@@ -25,6 +25,7 @@ public final class Ui {
 
     private static Typeface tfMain;
     private static Typeface tfHeavy;
+    private static Typeface tfGoth;
 
     private Ui() {}
 
@@ -59,6 +60,24 @@ public final class Ui {
             }
         }
         return tfHeavy;
+    }
+
+    /** Playfair Display Black Italic (bundled, OFL) — Ivory Hour's battle-menu display. */
+    public static Typeface tfGothic(Context c) {
+        if (tfGoth == null) {
+            try {
+                tfGoth = Typeface.createFromAsset(c.getAssets(),
+                        "PlayfairDisplay-BlackItalic.ttf");
+            } catch (Exception e) {
+                tfGoth = Typeface.create("serif", Typeface.BOLD_ITALIC);
+            }
+        }
+        return tfGoth;
+    }
+
+    /** The display face for the current theme — Playfair for Ivory, Barlow otherwise. */
+    public static Typeface display(Context c) {
+        return Theme.get().blackletter ? tfGothic(c) : tf(c);
     }
 
     public static String ellipsize(TextPaint p, String text, float maxW) {
