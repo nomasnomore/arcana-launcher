@@ -18,10 +18,10 @@ For the full experience, grant it notification access (for dots and the now-play
 
 ### Other form factors
 
-The phone build above is the daily driver. There are also two form-factor variants, both the same app and signing key, available as downloads on the [**Releases**](../../releases/latest) page:
+The phone build above is the daily driver. There are also two form-factor variants — both the same app and signing key, installed the same way:
 
-- **Tablet** (`…-tablet.apk`) — a landscape/rotation-aware layout that spreads out on a big screen, with the Midnight Channel in the dock and a Daily Tarot card.
-- **Galaxy Z Fold** (`…-fold.apk`) — one build that reshapes itself between the 5.5″ cover (phone stack) and the 7.6″ unfolded panel (console spread), switching live as you fold.
+- **Tablet** — **[ArcanaLauncher-v15.30-tablet.apk](ArcanaLauncher-v15.30-tablet.apk)** — a landscape/rotation-aware layout that spreads out on a big screen, with the Midnight Channel in the dock and a Daily Tarot card.
+- **Galaxy Z Fold** — **[ArcanaLauncher-v15.30-fold.apk](ArcanaLauncher-v15.30-fold.apk)** — one build that reshapes itself between the 5.5″ cover (phone stack) and the 7.6″ unfolded panel (console spread), switching live as you fold.
 
 These share the phone's feature set; only the home-screen layout differs. The source in this repo tracks the phone build — the form-factor layouts will fold back into it as a single adaptive build over time.
 
