@@ -21,6 +21,7 @@ public class GlyphView extends View {
     public static final int PLAY = 2;
     public static final int WEB = 3;
     public static final int CAM = 4;
+    public static final int TV = 5;
 
     private static final int TILE_BG = 0xF00A0E16;
 
@@ -196,7 +197,9 @@ public class GlyphView extends View {
                     Ui.dp(ctx, 2.4f), slashPaint);
             slashPaint.setColor(0xFFFFFFFF);      // restore for other themes/reuse
         } else {
-            // white slash accent across the top-left corner
+            // themed accent slash across the top-left corner (matches the mock)
+            slashPaint.setColor(press > 0.4f ? Theme.get().accentBright
+                    : Theme.get().accent);
             p.reset();
             p.moveTo(tx0 + skew - Ui.dp(ctx, 2), ty0);
             p.lineTo(tx0 + skew + Ui.dp(ctx, 12), ty0);
@@ -204,6 +207,7 @@ public class GlyphView extends View {
             p.lineTo(tx0 - Ui.dp(ctx, 2), ty0 + Ui.dp(ctx, 10));
             p.close();
             c.drawPath(p, slashPaint);
+            slashPaint.setColor(0xFFFFFFFF);
         }
 
         // glyph or app icon centered in the tile
@@ -248,12 +252,16 @@ public class GlyphView extends View {
     private void drawGlyph(Canvas c, float cx, float cy, float s) {
         switch (kind) {
             case PHONE: {
+                // bold "call" handset: a thick downward arc with two ball ends
                 c.save();
-                c.rotate(-40, cx, cy);
-                r.set(cx - s, cy + s * 0.42f, cx + s, cy + s * 1.02f);
-                c.drawArc(r, 15, 150, false, stroke);
-                c.drawCircle(cx - s * 0.82f, cy + s * 0.42f, s * 0.30f, fill);
-                c.drawCircle(cx + s * 0.82f, cy + s * 0.42f, s * 0.30f, fill);
+                c.rotate(-38, cx, cy);
+                stroke.setStrokeWidth(s * 0.30f);
+                p.reset();
+                p.moveTo(cx - s * 0.65f, cy + s * 0.24f);
+                p.quadTo(cx, cy + s * 1.15f, cx + s * 0.65f, cy + s * 0.24f);
+                c.drawPath(p, stroke);
+                c.drawCircle(cx - s * 0.65f, cy + s * 0.24f, s * 0.24f, fill);
+                c.drawCircle(cx + s * 0.65f, cy + s * 0.24f, s * 0.24f, fill);
                 c.restore();
                 break;
             }
@@ -280,10 +288,14 @@ public class GlyphView extends View {
                 break;
             }
             case WEB: {
-                c.drawCircle(cx, cy, s * 0.95f, stroke);
-                r.set(cx - s * 0.42f, cy - s * 0.95f, cx + s * 0.42f, cy + s * 0.95f);
-                c.drawOval(r, stroke);
-                c.drawLine(cx - s * 0.95f, cy, cx + s * 0.95f, cy, stroke);
+                // filled globe with dark meridian + equator punched in
+                c.drawCircle(cx, cy, s * 0.98f, fill);
+                hole.setStyle(Paint.Style.STROKE);
+                hole.setStrokeWidth(s * 0.12f);
+                r.set(cx - s * 0.42f, cy - s * 0.98f, cx + s * 0.42f, cy + s * 0.98f);
+                c.drawOval(r, hole);
+                c.drawLine(cx - s * 0.94f, cy, cx + s * 0.94f, cy, hole);
+                hole.setStyle(Paint.Style.FILL);
                 break;
             }
             case CAM: {
@@ -293,6 +305,33 @@ public class GlyphView extends View {
                 c.drawRoundRect(r, s * 0.10f, s * 0.10f, fill);
                 c.drawCircle(cx, cy + s * 0.06f, s * 0.34f, hole);
                 c.drawCircle(cx, cy + s * 0.06f, s * 0.16f, fill);
+                break;
+            }
+            case TV: {
+                // chunky retro TV — two splayed rabbit-ear antennae with ball
+                // tips, a big left screen, a right speaker grille + tuning dial
+                stroke.setStrokeWidth(s * 0.13f);
+                c.drawLine(cx - s * 0.06f, cy - s * 0.48f,
+                        cx - s * 0.72f, cy - s * 1.14f, stroke);
+                c.drawLine(cx + s * 0.06f, cy - s * 0.48f,
+                        cx + s * 0.72f, cy - s * 1.14f, stroke);
+                c.drawCircle(cx - s * 0.72f, cy - s * 1.14f, s * 0.11f, fill);
+                c.drawCircle(cx + s * 0.72f, cy - s * 1.14f, s * 0.11f, fill);
+                // body
+                r.set(cx - s * 1.06f, cy - s * 0.48f, cx + s * 1.06f, cy + s * 0.84f);
+                c.drawRoundRect(r, s * 0.18f, s * 0.18f, fill);
+                // big screen on the left
+                r.set(cx - s * 0.90f, cy - s * 0.30f, cx + s * 0.28f, cy + s * 0.66f);
+                c.drawRoundRect(r, s * 0.12f, s * 0.12f, hole);
+                // speaker grille (upper right): three bars
+                for (int gi = 0; gi < 3; gi++) {
+                    float gy = cy - s * 0.26f + gi * s * 0.17f;
+                    r.set(cx + s * 0.46f, gy, cx + s * 0.88f, gy + s * 0.06f);
+                    c.drawRect(r, hole);
+                }
+                // tuning dial (lower right)
+                c.drawCircle(cx + s * 0.67f, cy + s * 0.42f, s * 0.17f, hole);
+                c.drawCircle(cx + s * 0.67f, cy + s * 0.42f, s * 0.07f, fill);
                 break;
             }
         }

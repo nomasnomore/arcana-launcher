@@ -73,6 +73,9 @@ public class MainActivity extends Activity {
     private android.media.session.MediaController mediaController;
     private android.media.session.MediaSessionManager msm;
     private View flash;
+    private MailButton mailButton;
+    private MailView mailView;
+    private MediaHubView mediaHub;   // Midnight Channel media hub (center dock tile)
 
     private Prefs prefs;
     private List<AppEntry> apps = new ArrayList<AppEntry>();
@@ -91,7 +94,10 @@ public class MainActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) { updateClock(); }
     };
     private final BroadcastReceiver notifReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { updateDots(); }
+        @Override public void onReceive(Context c, Intent i) {
+            updateDots();
+            refreshMediaWatch();   // listener may have just (re)connected
+        }
     };
     private final BroadcastReceiver pkgReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
@@ -445,7 +451,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams plp2 = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.TOP | Gravity.END);
-        plp2.topMargin = Ui.dpi(this, 24);   // the alarm box's slot
+        plp2.topMargin = Ui.dpi(this, 28);   // high in the corner, under the small mail icon
         plp2.rightMargin = Ui.dpi(this, 4);
         homeLayer.addView(playerView, plp2);
 
@@ -455,7 +461,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams menuLp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.TOP | Gravity.END);
-        menuLp.topMargin = Ui.dpi(this, 148); // starts beside the SATURDAY ribbon
+        menuLp.topMargin = Ui.dpi(this, 148); // starts beside the date ribbon
         menuLp.rightMargin = Ui.dpi(this, 4);
         homeLayer.addView(dockRow, menuLp);
 
@@ -547,7 +553,242 @@ public class MainActivity extends Activity {
             }
         });
 
+        // ---- top-right MAIL indicator ----
+        mailButton = new MailButton(this);
+        FrameLayout.LayoutParams mbLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP | Gravity.END);
+        mbLp.topMargin = Ui.dpi(this, 2);
+        mbLp.rightMargin = Ui.dpi(this, 6);
+        homeLayer.addView(mailButton, mbLp);
+        mailButton.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { openMail(); }
+        });
+        mailButton.setCount(NotifService.feedCount());
+
         updateClock();
+    }
+
+    // -------------------------------------------------------------------- mail
+
+    private void openMail() {
+        if (mailView == null) {
+            mailView = new MailView(this);
+            mailView.setHost(new MailView.Host() {
+                @Override public android.graphics.Bitmap iconFor(String pkg) {
+                    AppEntry e = appForPkg(pkg);
+                    return e == null ? null : e.icon;
+                }
+                @Override public String labelFor(String pkg) {
+                    AppEntry e = appForPkg(pkg);
+                    return e == null ? pkg : e.labelUp;
+                }
+                @Override public void openItem(NotifService.Item it) {
+                    fireNotif(it);
+                }
+            });
+            root.addView(mailView, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        mailView.open();
+        if (crtView != null) crtView.bringToFront();
+    }
+
+    private AppEntry appForPkg(String pkg) {
+        if (pkg == null) return null;
+        for (AppEntry e : apps) {
+            if (e.pkg.equals(pkg)) return e;
+        }
+        return null;
+    }
+
+    // ---------------------------------------------------- Midnight Channel hub
+
+    private void openMediaHub() {
+        if (mediaHub == null) {
+            mediaHub = new MediaHubView(this);
+            mediaHub.setHost(new MediaHubView.Host() {
+                @Override public java.util.List<String> mediaPkgs() {
+                    return prefs.mediaApps();
+                }
+                @Override public android.graphics.Bitmap iconFor(String pkg) {
+                    AppEntry e = appForPkg(pkg);
+                    return e == null ? null : e.icon;
+                }
+                @Override public String labelFor(String pkg) {
+                    AppEntry e = appForPkg(pkg);
+                    return e == null ? pkg : e.labelUp;
+                }
+                @Override public void launch(String pkg) {
+                    startQuick(null, pkg);
+                }
+                @Override public void addFlow() {
+                    showAddMediaDialog();
+                }
+                @Override public void remove(String pkg) {
+                    prefs.removeMediaApp(pkg);
+                    AppEntry e = appForPkg(pkg);
+                    toast("REMOVED " + (e == null ? "" : e.labelUp));
+                }
+            });
+            root.addView(mediaHub, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        mediaHub.open();
+        if (crtView != null) crtView.bringToFront();
+    }
+
+    private void showAddMediaDialog() {
+        final MainActivity self = this;
+        final Dialog d = new Dialog(this);
+        d.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(Ui.dpi(this, 10), Ui.dpi(this, 10),
+                Ui.dpi(this, 10), Ui.dpi(this, 10));
+
+        TextView head = new TextView(this);
+        head.setTypeface(Ui.tf(this));
+        head.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19);
+        head.setTextColor(Theme.get().accentText());
+        head.setText("ADD CHANNEL");
+        head.setBackground(new SkewDrawable(Theme.get().accent, Ui.dp(this, 10)));
+        head.setPadding(Ui.dpi(this, 20), Ui.dpi(this, 10),
+                Ui.dpi(this, 20), Ui.dpi(this, 10));
+        box.addView(head, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final EditText search = new EditText(this);
+        search.setTypeface(Ui.tfUpright(this));
+        search.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        search.setSingleLine(true);
+        search.setHint("SEARCH APPS…");
+        search.setTextColor(0xFF10131A);
+        search.setHintTextColor(0x8010131A);
+        search.setBackgroundColor(0xF2FFFFFF);
+        search.setPadding(Ui.dpi(this, 14), Ui.dpi(this, 10),
+                Ui.dpi(this, 14), Ui.dpi(this, 10));
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = Ui.dpi(this, 8);
+        box.addView(search, slp);
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        final LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(list, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams lstlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dpi(this, 360));
+        lstlp.topMargin = Ui.dpi(this, 8);
+        box.addView(scroll, lstlp);
+
+        final java.util.List<AppEntry> sorted = new ArrayList<AppEntry>(apps);
+        java.util.Collections.sort(sorted, new java.util.Comparator<AppEntry>() {
+            @Override public int compare(AppEntry a, AppEntry b) {
+                return a.labelUp.compareTo(b.labelUp);
+            }
+        });
+
+        final Runnable[] rebuild = new Runnable[1];
+        rebuild[0] = new Runnable() {
+            @Override public void run() {
+                list.removeAllViews();
+                String q = search.getText().toString().trim()
+                        .toLowerCase(Locale.getDefault());
+                java.util.List<String> have = prefs.mediaApps();
+                int count = 0;
+                for (final AppEntry e : sorted) {
+                    if (have.contains(e.pkg)) continue;
+                    if (q.length() > 0 && !e.labelUp.toLowerCase(Locale.getDefault())
+                            .contains(q)) continue;
+                    TextView row = dialogRow(e.labelUp, 0xFF06080C);
+                    row.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            prefs.addMediaApp(e.pkg);
+                            if (mediaHub != null) mediaHub.refresh();
+                            rebuild[0].run();   // drop it, keep the dialog open
+                        }
+                    });
+                    LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT);
+                    rlp.topMargin = Ui.dpi(self, 7);
+                    list.addView(row, rlp);
+                    count++;
+                }
+                if (count == 0) {
+                    TextView none = new TextView(self);
+                    none.setTypeface(Ui.tfUpright(self));
+                    none.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+                    none.setTextColor(0x99FFFFFF);
+                    none.setText(q.length() > 0 ? "NO MATCHES" : "ALL APPS ADDED");
+                    none.setPadding(Ui.dpi(self, 8), Ui.dpi(self, 16), 0, 0);
+                    list.addView(none);
+                }
+            }
+        };
+        rebuild[0].run();
+
+        search.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {
+                rebuild[0].run();
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        d.setContentView(box);
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(0));
+            w.setLayout(Ui.dpi(this, 330), ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.setDimAmount(0.75f);
+        }
+        d.show();
+    }
+
+    private void fireNotif(NotifService.Item it) {
+        boolean ok = false;
+        try {
+            if (it.intent != null) {
+                // Android 14 blocks a cross-app activity start via a
+                // PendingIntent unless the sender grants it — opt in so the
+                // notification's own screen actually opens.
+                android.os.Bundle opts = null;
+                if (Build.VERSION.SDK_INT >= 34) {
+                    ActivityOptions ao = ActivityOptions.makeBasic();
+                    ao.setPendingIntentBackgroundActivityStartMode(
+                            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+                    opts = ao.toBundle();
+                }
+                it.intent.send(this, 0, null, null, null, null, opts);
+                ok = true;
+            }
+        } catch (Exception ignored) {}
+        if (!ok) {
+            try {
+                Intent i = getPackageManager().getLaunchIntentForPackage(it.pkg);
+                if (i != null) {
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    ok = true;
+                }
+            } catch (Exception ignored) {}
+        }
+        if (ok) {
+            flashAccent();
+            if (mailView != null) mailView.close();
+        } else {
+            toast("CAN'T OPEN");
+        }
     }
 
     // ----------------------------------------------------------- drawer layer
@@ -883,6 +1124,8 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (mediaHub != null && mediaHub.handleBack()) return;
+        if (mailView != null && mailView.handleBack()) return;
         if (addModeCat != null) {
             exitAddMode();
             return;
@@ -919,6 +1162,15 @@ public class MainActivity extends Activity {
                     prefs.setFlag("system_pinned", true);
                     if (prefs.catNames().contains("SYSTEM")) {
                         prefs.deleteCat("SYSTEM");
+                    }
+                }
+                // one-time: seed YouTube into the Midnight Channel so the hub
+                // isn't empty when it takes over the old YouTube dock slot
+                if (!prefs.flag("media_seeded")) {
+                    prefs.setFlag("media_seeded", true);
+                    if (prefs.mediaApps().isEmpty()
+                            && installed("com.google.android.youtube")) {
+                        prefs.addMediaApp("com.google.android.youtube");
                     }
                 }
                 usesMap.clear();
@@ -1280,6 +1532,14 @@ public class MainActivity extends Activity {
                 action = new Runnable() {
                     @Override public void run() { startQuick(null, pkg); }
                 };
+            } else if (i == 2) {
+                // center slot: the Midnight Channel media hub (replaces YouTube,
+                // which lives inside the hub as a channel)
+                g = new GlyphView(this, GlyphView.TV, "CHANNEL", "チャンネル");
+                action = new Runnable() {
+                    @Override public void run() { openMediaHub(); }
+                };
+                dotPkg = null;
             } else {
                 g = new GlyphView(this, kinds[i], labels[i], jps[i]);
                 action = defaultQuickAction(i);
@@ -1447,7 +1707,9 @@ public class MainActivity extends Activity {
     public boolean dispatchTouchEvent(MotionEvent e) {
         // Observe every touch at the Activity level so home gestures work no
         // matter which child (clock, categories…) is under the finger.
-        if (!drawerOpen) {
+        boolean mailOpen = mailView != null && mailView.getVisibility() == View.VISIBLE;
+        boolean hubOpen = mediaHub != null && mediaHub.getVisibility() == View.VISIBLE;
+        if (!drawerOpen && !mailOpen && !hubOpen) {
             if (homeGd != null) homeGd.onTouchEvent(e);   // up/down flings
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
@@ -1486,6 +1748,8 @@ public class MainActivity extends Activity {
                 ((GlyphView) v).setDot(pkg != null && NotifService.has(pkg));
             }
         }
+        if (mailButton != null) mailButton.setCount(NotifService.feedCount());
+        if (mailView != null) mailView.refresh();
     }
 
     // ------------------------------------------------------------------ clock
@@ -2522,6 +2786,17 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Re-establish the media-session watch if we don't currently have a live
+     * controller. Called when the notification listener (re)connects, so the
+     * now-playing widget recovers on its own after an app update unbinds it.
+     */
+    private void refreshMediaWatch() {
+        if (mediaController != null) return;   // already showing — leave it alone
+        stopMediaWatch();
+        startMediaWatch();
+    }
+
     private void stopMediaWatch() {
         try {
             if (msm != null) {
@@ -2555,6 +2830,22 @@ public class MainActivity extends Activity {
         regReceiver(pkgReceiver, pf);
     }
 
+    /**
+     * Force the notification listener to reconnect. Android often leaves the
+     * NotificationListenerService unbound after an app update (the permission
+     * still reads as granted, so media keeps working, but onNotificationPosted
+     * stops firing). requestRebind is a no-op when already bound, so it's cheap
+     * to call on every resume.
+     */
+    private void ensureNotifBound() {
+        try {
+            if (Build.VERSION.SDK_INT >= 24 && NotifService.isEnabled(this)) {
+                android.service.notification.NotificationListenerService.requestRebind(
+                        new android.content.ComponentName(this, NotifService.class));
+            }
+        } catch (Exception ignored) {}
+    }
+
     private void regReceiver(BroadcastReceiver r, IntentFilter f) {
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(r, f, Context.RECEIVER_NOT_EXPORTED);
@@ -2566,6 +2857,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        ensureNotifBound();
         updateClock();
         updateDots();
         updateDefaultHint();

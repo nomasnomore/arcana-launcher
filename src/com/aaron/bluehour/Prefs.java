@@ -108,6 +108,26 @@ public class Prefs {
         setCatApps(name, s);
     }
 
+    // ----- media hub (tablet): attached media apps, ordered -----
+    public List<String> mediaApps() {
+        String v = sp.getString("media_apps", "");
+        List<String> out = new ArrayList<String>();
+        if (!TextUtils.isEmpty(v)) out.addAll(Arrays.asList(v.split("\\|")));
+        return out;
+    }
+
+    public void addMediaApp(String pkg) {
+        List<String> l = mediaApps();
+        if (!l.contains(pkg)) { l.add(pkg); sp.edit()
+                .putString("media_apps", TextUtils.join("|", l)).apply(); }
+    }
+
+    public void removeMediaApp(String pkg) {
+        List<String> l = mediaApps();
+        if (l.remove(pkg)) sp.edit()
+                .putString("media_apps", TextUtils.join("|", l)).apply();
+    }
+
     // ----- dock quick slots (0..4); "" = built-in default -----
     public String quickSlot(int i) {
         return sp.getString("quick_" + i, "");
