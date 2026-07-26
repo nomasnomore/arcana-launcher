@@ -21,6 +21,9 @@ public class MenuWordView extends View {
     private final int baseColor;
     private boolean dot;
     private float press = 0f;
+    // per-word horizontal rest position (P5 scatter / P3 cascade); the entrance
+    // animation returns here instead of snapping every word back to 0.
+    private float restingTx = 0f;
 
     private final TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint subPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -63,11 +66,37 @@ public class MenuWordView extends View {
         subPaint.setTextSize(Ui.dp(c, 11.5f));
         // P4 & Ivory sit straight; P5 leans hard; P3 leans a little
         int ss = Theme.get().shapeStyle;
-        setRotation((ss == 1 || ss == 3) ? 0f : (ss == 2 ? -3f : -1.6f));
+        if (ss == 2) {
+            // P5: each ransom tag tilts and scatters a little, hand-cut style
+            int h = label.hashCode();
+            setRotation(-3f + jitter(h, 3.2f));
+            restingTx = jitter(h + 7, Ui.dp(c, 7)) - Ui.dp(c, 5);
+            setTranslationX(restingTx);
+        } else {
+            setRotation((ss == 1 || ss == 3) ? 0f : -1.6f);
+        }
         slashPaint.setColor(0xFFFFFFFF);
         barPaint.setColor(0xFF06080C);
         linePaint.setStrokeWidth(Ui.dp(c, 1.5f));
         setClickable(true);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        // Blue Hour: step each successive word right so the column reads as
+        // a diagonal cyan cascade (P3 main-menu signature).
+        if (Theme.get().shapeStyle == 0 && getParent() instanceof android.view.ViewGroup) {
+            int idx = ((android.view.ViewGroup) getParent()).indexOfChild(this);
+            if (idx < 0) idx = 0;
+            restingTx = Ui.dp(getContext(), 7) * Math.min(idx, 8);
+            setTranslationX(restingTx);
+        }
+    }
+
+    /** Resting horizontal offset the entrance animation should return to. */
+    public float restingTx() {
+        return restingTx;
     }
 
     public String label() {
@@ -226,8 +255,43 @@ public class MenuWordView extends View {
         float lineY = wordBase + Ui.dp(ctx, 7);
         float subBase = wordBase + Ui.dp(ctx, 22);
         float tw = textPaint.measureText(label);
+        final boolean p5 = Theme.get().shapeStyle == 2;
+        final boolean p3 = Theme.get().shapeStyle == 0;
 
-        if (press > 0.04f) {
+        // Red Hour: every category rides a persistent torn-paper ransom tag.
+        // Black tag / white text at rest; flips to a white tag with red outline
+        // and a bursting red star when the word is selected (text darkens).
+        if (p5) {
+            float left = tx - Ui.dp(ctx, 10);
+            float right = tx + tw + Ui.dp(ctx, 16);
+            float top = wordBase - ts * 0.90f;
+            float bot = wordBase + ts * 0.30f;
+            if (press > 0.02f) {
+                float starCx = left + Ui.dp(ctx, 5);
+                float starCy = (top + bot) / 2f;
+                float starR = (bot - top) * 0.6f;
+                buildStar(starCx, starCy, starR, starR * 0.44f, 5);
+                barPaint.setColor(Theme.get().accent);
+                barPaint.setAlpha((int) (press * 255));
+                c.save();
+                c.rotate(-14, starCx, starCy);
+                c.drawPath(star, barPaint);
+                c.restore();
+                barPaint.setColor(0xFF06080C);
+            }
+            buildJagged(left, top, right, bot);
+            slashPaint.setColor(lerpColor(0xFF0A0A0C, 0xFFF4F4F4, press));
+            slashPaint.setAlpha(255);
+            c.drawPath(slash, slashPaint);
+            slashPaint.setColor(0xFFFFFFFF);
+            edgePaint.setStyle(Paint.Style.STROKE);
+            edgePaint.setStrokeWidth(Ui.dp(ctx, 2.4f));
+            edgePaint.setColor(lerpColor(0xFFFFFFFF, Theme.get().accent, press));
+            c.drawPath(slash, edgePaint);
+            edgePaint.setStyle(Paint.Style.FILL);
+        }
+
+        if (press > 0.04f && !p5) {
             float left = tx - Ui.dp(ctx, 12);
             float right = tx + tw + Ui.dp(ctx, 22);
             float top = wordBase - ts * 0.86f;
@@ -345,17 +409,27 @@ public class MenuWordView extends View {
         // the others darken it on their light selection shape.
         int pressedInk = painterly ? 0xFFFFF7E6 : 0xFF06080C;
         int mainColor = lerpColor(baseColor, pressedInk, press);
+        if (p5) mainColor = lerpColor(0xFFF5F5F5, 0xFF0A0A0C, press);
         textPaint.setColor(mainColor);
-        if (Theme.get().ransom) {
-            drawRansom(c, ctx, label, tx, wordBase, ts, mainColor);
+        if (p5) {
+            textPaint.clearShadowLayer();
+            c.drawText(label, tx, wordBase, textPaint);
         } else if (painterly && label.length() > 1) {
             drawExaggerated(c, label, tx, wordBase, ts, mainColor);
         } else {
+            if (p3 && press < 0.5f) {
+                // Blue Hour: icy diagonal gradient — pale crest to electric blue
+                textPaint.setShader(new android.graphics.LinearGradient(
+                        tx, wordBase - ts, tx + tw, wordBase,
+                        new int[]{0xFFF2FFFE, Theme.get().accentBright, Theme.get().accent},
+                        null, android.graphics.Shader.TileMode.CLAMP));
+            }
             c.drawText(label, tx, wordBase, textPaint);
+            textPaint.setShader(null);
         }
 
-        // thin underline under the word (hidden while pressed)
-        if (press < 0.5f) {
+        // thin underline under the word (hidden while pressed; P5 uses its tag)
+        if (press < 0.5f && !p5) {
             float lineRight = tx + tw + Ui.dp(ctx, 32);
             if (Theme.get().rainbow) {
                 // P4's rainbow line

@@ -108,7 +108,42 @@ public class MainActivity extends Activity {
                 prefs.removePkgEverywhere(i.getData().getSchemeSpecificPart());
                 buildQuickRow();
             }
-            loadApps();
+            scheduleAppReload();
+        }
+    };
+
+    // Debounced app-list refresh. Package broadcasts + LauncherApps callbacks +
+    // the on-resume refresh can all fire in a burst; collapse them into one load.
+    private final android.os.Handler appReloadHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable appReloadRun = new Runnable() {
+        @Override public void run() { loadApps(); }
+    };
+    private void scheduleAppReload() {
+        appReloadHandler.removeCallbacks(appReloadRun);
+        appReloadHandler.postDelayed(appReloadRun, 250);
+    }
+
+    private boolean firstStart = true;
+    private android.content.pm.LauncherApps launcherApps;
+    private final android.content.pm.LauncherApps.Callback launcherCb =
+            new android.content.pm.LauncherApps.Callback() {
+        @Override public void onPackageAdded(String p, android.os.UserHandle u) {
+            scheduleAppReload();
+        }
+        @Override public void onPackageRemoved(String p, android.os.UserHandle u) {
+            scheduleAppReload();
+        }
+        @Override public void onPackageChanged(String p, android.os.UserHandle u) {
+            scheduleAppReload();
+        }
+        @Override public void onPackagesAvailable(String[] p, android.os.UserHandle u,
+                                                  boolean replacing) {
+            scheduleAppReload();
+        }
+        @Override public void onPackagesUnavailable(String[] p, android.os.UserHandle u,
+                                                    boolean replacing) {
+            scheduleAppReload();
         }
     };
 
@@ -2451,21 +2486,78 @@ public class MainActivity extends Activity {
     }
 
     private void fetchWeather() {
-        try {
-            android.location.LocationManager lm = (android.location.LocationManager)
-                    getSystemService(Context.LOCATION_SERVICE);
-            android.location.Location loc = null;
-            String[] providers = {android.location.LocationManager.NETWORK_PROVIDER,
-                    android.location.LocationManager.PASSIVE_PROVIDER,
-                    android.location.LocationManager.GPS_PROVIDER};
-            for (String pr : providers) {
-                try {
-                    loc = lm.getLastKnownLocation(pr);
-                } catch (Exception ignored) {}
-                if (loc != null) break;
-            }
-            if (loc == null) return;
+        android.location.LocationManager lm = (android.location.LocationManager)
+                getSystemService(Context.LOCATION_SERVICE);
+        android.location.Location loc = null;
+        String[] providers = {android.location.LocationManager.NETWORK_PROVIDER,
+                android.location.LocationManager.PASSIVE_PROVIDER,
+                android.location.LocationManager.GPS_PROVIDER};
+        for (String pr : providers) {
+            try {
+                loc = lm.getLastKnownLocation(pr);
+            } catch (Exception ignored) {}
+            if (loc != null) break;
+        }
+        if (loc == null) {
+            // Nothing cached from the OS — ask for a single fresh fix, then fetch.
+            runOnUiThread(new Runnable() {
+                @Override public void run() { requestFreshLocation(); }
+            });
+            return;
+        }
+        doWeatherFetch(loc);
+    }
 
+    /** One-shot location request (main thread) when no last-known fix exists. */
+    private void requestFreshLocation() {
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        final android.location.LocationManager lm = (android.location.LocationManager)
+                getSystemService(Context.LOCATION_SERVICE);
+        final android.location.LocationListener[] holder =
+                new android.location.LocationListener[1];
+        final android.location.LocationListener ll =
+                new android.location.LocationListener() {
+            @Override public void onLocationChanged(android.location.Location l) {
+                try { lm.removeUpdates(this); } catch (Exception ignored) {}
+                final android.location.Location fixed = l;
+                new Thread(new Runnable() {
+                    @Override public void run() { doWeatherFetch(fixed); }
+                }, "bluehour-wx2").start();
+            }
+            @Override public void onProviderEnabled(String p) {}
+            @Override public void onProviderDisabled(String p) {}
+            @Override public void onStatusChanged(String p, int s, android.os.Bundle b) {}
+        };
+        holder[0] = ll;
+        String provider = null;
+        try {
+            if (lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+                provider = android.location.LocationManager.NETWORK_PROVIDER;
+            } else if (lm.isProviderEnabled(
+                    android.location.LocationManager.GPS_PROVIDER)) {
+                provider = android.location.LocationManager.GPS_PROVIDER;
+            }
+        } catch (Exception ignored) {}
+        if (provider == null) return;
+        try {
+            lm.requestSingleUpdate(provider, ll, android.os.Looper.getMainLooper());
+        } catch (Exception ignored) {
+            return;
+        }
+        // give up after 12s so we don't hold a listener forever
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                new Runnable() {
+                    @Override public void run() {
+                        try { lm.removeUpdates(holder[0]); } catch (Exception ignored) {}
+                    }
+                }, 12000);
+    }
+
+    private void doWeatherFetch(android.location.Location loc) {
+        try {
             boolean useF = "US".equals(Locale.getDefault().getCountry());
             String url = "https://api.open-meteo.com/v1/forecast?latitude="
                     + loc.getLatitude() + "&longitude=" + loc.getLongitude()
@@ -2828,6 +2920,27 @@ public class MainActivity extends Activity {
         pf.addAction(Intent.ACTION_PACKAGE_CHANGED);
         pf.addDataScheme("package");
         regReceiver(pkgReceiver, pf);
+
+        // LauncherApps is the launcher-grade hook for install/remove/change and
+        // fires reliably while we're on the home screen. Register alongside the
+        // broadcast receiver (both feed the same debounced reload).
+        try {
+            if (launcherApps == null) {
+                launcherApps = (android.content.pm.LauncherApps)
+                        getSystemService(Context.LAUNCHER_APPS_SERVICE);
+            }
+            if (launcherApps != null) launcherApps.registerCallback(launcherCb);
+        } catch (Exception ignored) {}
+
+        // Refresh the list whenever we return to the foreground — the package
+        // broadcast that fired while we were stopped (e.g. mid-install in the
+        // Play Store) was missed, so re-query now. Skip the very first start
+        // since onCreate already loaded.
+        if (firstStart) {
+            firstStart = false;
+        } else {
+            scheduleAppReload();
+        }
     }
 
     /**
@@ -2875,10 +2988,12 @@ public class MainActivity extends Activity {
         if (dockRow == null || drawerOpen) return;
         for (int i = 0; i < dockRow.getChildCount(); i++) {
             View v = dockRow.getChildAt(i);
+            float rest = (v instanceof MenuWordView)
+                    ? ((MenuWordView) v).restingTx() : 0f;
             v.animate().cancel();
-            v.setTranslationX(Ui.dp(this, 64));
+            v.setTranslationX(rest + Ui.dp(this, 64));
             v.setAlpha(0f);
-            v.animate().translationX(0f).alpha(1f)
+            v.animate().translationX(rest).alpha(1f)
                     .setStartDelay(i * 26L).setDuration(300)
                     .setInterpolator(new android.view.animation
                             .OvershootInterpolator(1.5f)).start();
@@ -2895,6 +3010,9 @@ public class MainActivity extends Activity {
         try { unregisterReceiver(timeReceiver); } catch (Exception ignored) {}
         try { unregisterReceiver(notifReceiver); } catch (Exception ignored) {}
         try { unregisterReceiver(pkgReceiver); } catch (Exception ignored) {}
+        try { if (launcherApps != null) launcherApps.unregisterCallback(launcherCb); }
+        catch (Exception ignored) {}
+        appReloadHandler.removeCallbacks(appReloadRun);
     }
 
     private void toast(String msg) {

@@ -1,6 +1,6 @@
 # Arcana Launcher
 
-A custom Android home launcher inspired by the *Persona* menu style — hand-drawn entirely in code, with **three complete swappable themes** modeled on the modern Persona look (P3 / P4 / P5). No ripped game assets, no logos: only original UI that echoes the *design language* of those menus.
+A custom Android home launcher inspired by the *Persona* menu style — hand-drawn entirely in code, with **four complete swappable themes** modeled on the modern Persona look (P3 / P4 / P5, plus *Metaphor: ReFantazio*). No ripped game assets, no logos: only original UI that echoes the *design language* of those menus.
 
 Built and daily-driven on a Galaxy S23 Ultra. Sideloaded APK, not on the Play Store — this is a passion project.
 
@@ -10,11 +10,20 @@ Built and daily-driven on a Galaxy S23 Ultra. Sideloaded APK, not on the Play St
 
 ## Install (just want to use it)
 
-1. Download **[ArcanaLauncher-v15.26.apk](ArcanaLauncher-v15.26.apk)** (click the file above, then the download button).
+1. Download **[ArcanaLauncher-v15.30.apk](ArcanaLauncher-v15.30.apk)** (click the file above, then the download button).
 2. Copy it to your phone and open it. Android will ask you to allow installing from this source — say yes.
 3. Tap the home button and pick **Arcana Launcher** as your home app.
 
 For the full experience, grant it notification access (for dots and the now-playing widget) in Android settings when it prompts.
+
+### Other form factors
+
+The phone build above is the daily driver. There are also two form-factor variants, both the same app and signing key, available as downloads on the [**Releases**](../../releases/latest) page:
+
+- **Tablet** (`…-tablet.apk`) — a landscape/rotation-aware layout that spreads out on a big screen, with the Midnight Channel in the dock and a Daily Tarot card.
+- **Galaxy Z Fold** (`…-fold.apk`) — one build that reshapes itself between the 5.5″ cover (phone stack) and the 7.6″ unfolded panel (console spread), switching live as you fold.
+
+These share the phone's feature set; only the home-screen layout differs. The source in this repo tracks the phone build — the form-factor layouts will fold back into it as a single adaptive build over time.
 
 ---
 
