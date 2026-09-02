@@ -119,6 +119,7 @@ public class MainActivity extends Activity {
     private MailView mailView;
     private MediaController mediaController;
     private MediaHubView mediaHub;
+    private MangaCafeView mangaCafe;
     private MediaSessionManager msm;
     private TextView phaseText;
     private PlayerView playerView;
@@ -980,6 +981,19 @@ public class MainActivity extends Activity {
             layoutParams.rightMargin = Ui.dpi(this, 3.0f);
             this.quickRow.addView(glyphView, layoutParams);
         }
+        if (isUnfolded()) {
+            GlyphView mangaGlyph = new GlyphView(this, GlyphView.BOOK, "MANGA", "まんが");
+            mangaGlyph.setOnClickListener(new View.OnClickListener() { // manga cafe (unfolded only)
+                @Override // android.view.View.OnClickListener
+                public void onClick(View view) {
+                    MainActivity.this.openMangaCafe();
+                }
+            });
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(Ui.dpi(this, 66.0f), Ui.dpi(this, 94.0f));
+            mlp.leftMargin = Ui.dpi(this, 3.0f);
+            mlp.rightMargin = Ui.dpi(this, 3.0f);
+            this.quickRow.addView(mangaGlyph, mlp);
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1685,6 +1699,55 @@ public class MainActivity extends Activity {
         }
     }
 
+    public void openMangaCafe() {
+        if (this.mangaCafe == null) {
+            this.mangaCafe = new MangaCafeView(this);
+            this.mangaCafe.setHost(new MangaCafeView.Host() { // from class: com.aaron.bluehour.MainActivity.MangaHost
+                @Override // com.aaron.bluehour.MangaCafeView.Host
+                public void addFlow() {
+                    MainActivity.this.showAddReaderDialog();
+                }
+
+                @Override // com.aaron.bluehour.MangaCafeView.Host
+                public Bitmap iconFor(String str) {
+                    AppEntry appForPkg = MainActivity.this.appForPkg(str);
+                    if (appForPkg == null) {
+                        return null;
+                    }
+                    return appForPkg.icon;
+                }
+
+                @Override // com.aaron.bluehour.MangaCafeView.Host
+                public String labelFor(String str) {
+                    AppEntry appForPkg = MainActivity.this.appForPkg(str);
+                    return appForPkg == null ? str : appForPkg.labelUp;
+                }
+
+                @Override // com.aaron.bluehour.MangaCafeView.Host
+                public void launch(String str) {
+                    MainActivity.this.startQuick(null, str);
+                }
+
+                @Override // com.aaron.bluehour.MangaCafeView.Host
+                public List<String> readerPkgs() {
+                    return MainActivity.this.prefs.readerApps();
+                }
+
+                @Override // com.aaron.bluehour.MangaCafeView.Host
+                public void remove(String str) {
+                    MainActivity.this.prefs.removeReaderApp(str);
+                    AppEntry appForPkg = MainActivity.this.appForPkg(str);
+                    MainActivity.this.toast("REMOVED " + (appForPkg == null ? "" : appForPkg.labelUp));
+                }
+            });
+            this.root.addView(this.mangaCafe, new FrameLayout.LayoutParams(-1, -1));
+        }
+        this.mangaCafe.open();
+        if (this.crtView != null) {
+            this.crtView.bringToFront();
+        }
+    }
+
     /* JADX INFO: Access modifiers changed from: private */
     public void openRecents() {
         if (this.drawerOpen) {
@@ -2074,6 +2137,110 @@ public class MainActivity extends Activity {
     }
 
     /* JADX INFO: Access modifiers changed from: private */
+    public void showAddReaderDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(1);
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setPadding(Ui.dpi(this, 10.0f), Ui.dpi(this, 10.0f), Ui.dpi(this, 10.0f), Ui.dpi(this, 10.0f));
+        TextView textView = new TextView(this);
+        textView.setTypeface(Ui.tf(this));
+        textView.setTextSize(2, 19.0f);
+        textView.setTextColor(Theme.get().accentText());
+        textView.setText("ADD READER");
+        textView.setBackground(new SkewDrawable(Theme.get().accent, Ui.dp(this, 10.0f)));
+        textView.setPadding(Ui.dpi(this, 20.0f), Ui.dpi(this, 10.0f), Ui.dpi(this, 20.0f), Ui.dpi(this, 10.0f));
+        linearLayout.addView(textView, new LinearLayout.LayoutParams(-1, -2));
+        final EditText editText = new EditText(this);
+        editText.setTypeface(Ui.tfUpright(this));
+        editText.setTextSize(2, 16.0f);
+        editText.setSingleLine(true);
+        editText.setHint("SEARCH APPS…");
+        editText.setTextColor(-15723750);
+        editText.setHintTextColor(-2146430182);
+        editText.setBackgroundColor(-218103809);
+        editText.setPadding(Ui.dpi(this, 14.0f), Ui.dpi(this, 10.0f), Ui.dpi(this, 14.0f), Ui.dpi(this, 10.0f));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams.topMargin = Ui.dpi(this, 8.0f);
+        linearLayout.addView(editText, layoutParams);
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setVerticalScrollBarEnabled(false);
+        final LinearLayout linearLayout2 = new LinearLayout(this);
+        linearLayout2.setOrientation(1);
+        scrollView.addView(linearLayout2, new ViewGroup.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, Ui.dpi(this, 360.0f));
+        layoutParams2.topMargin = Ui.dpi(this, 8.0f);
+        linearLayout.addView(scrollView, layoutParams2);
+        final ArrayList<AppEntry> arrayList = new ArrayList<AppEntry>(this.apps);
+        Collections.sort(arrayList, new Comparator<AppEntry>() {
+            @Override // java.util.Comparator
+            public int compare(AppEntry appEntry, AppEntry appEntry2) {
+                return appEntry.labelUp.compareTo(appEntry2.labelUp);
+            }
+        });
+        final Runnable[] runnableArr = new Runnable[1];
+        runnableArr[0] = new Runnable() {
+            @Override // java.lang.Runnable
+            public void run() {
+                linearLayout2.removeAllViews();
+                String lowerCase = editText.getText().toString().trim().toLowerCase(Locale.getDefault());
+                List<String> readerApps = MainActivity.this.prefs.readerApps();
+                int i = 0;
+                for (final AppEntry appEntry : arrayList) {
+                    if (!readerApps.contains(appEntry.pkg) && (lowerCase.length() <= 0 || appEntry.labelUp.toLowerCase(Locale.getDefault()).contains(lowerCase))) {
+                        TextView dialogRow = MainActivity.this.dialogRow(appEntry.labelUp, -16381940);
+                        dialogRow.setOnClickListener(new View.OnClickListener() {
+                            @Override // android.view.View.OnClickListener
+                            public void onClick(View view) {
+                                MainActivity.this.prefs.addReaderApp(appEntry.pkg);
+                                if (MainActivity.this.mangaCafe != null) {
+                                    MainActivity.this.mangaCafe.refresh();
+                                }
+                                runnableArr[0].run();
+                            }
+                        });
+                        LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(-1, -2);
+                        layoutParams3.topMargin = Ui.dpi(MainActivity.this, 7.0f);
+                        linearLayout2.addView(dialogRow, layoutParams3);
+                        i++;
+                    }
+                }
+                if (i == 0) {
+                    TextView textView2 = new TextView(MainActivity.this);
+                    textView2.setTypeface(Ui.tfUpright(MainActivity.this));
+                    textView2.setTextSize(2, 14.0f);
+                    textView2.setTextColor(-1711276033);
+                    textView2.setText(lowerCase.length() > 0 ? "NO MATCHES" : "ALL APPS ADDED");
+                    textView2.setPadding(Ui.dpi(MainActivity.this, 8.0f), Ui.dpi(MainActivity.this, 16.0f), 0, 0);
+                    linearLayout2.addView(textView2);
+                }
+            }
+        };
+        runnableArr[0].run();
+        editText.addTextChangedListener(new TextWatcher() {
+            @Override // android.text.TextWatcher
+            public void afterTextChanged(Editable editable) {
+            }
+
+            @Override // android.text.TextWatcher
+            public void beforeTextChanged(CharSequence charSequence, int i, int i2, int i3) {
+            }
+
+            @Override // android.text.TextWatcher
+            public void onTextChanged(CharSequence charSequence, int i, int i2, int i3) {
+                runnableArr[0].run();
+            }
+        });
+        dialog.setContentView(linearLayout);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(0));
+            window.setLayout(Ui.dpi(this, 330.0f), -2);
+            window.setDimAmount(0.75f);
+        }
+        dialog.show();
+    }
+
     public void showAddMediaDialog() {
         Dialog dialog = new Dialog(this);
         dialog.requestWindowFeature(1);
@@ -3026,7 +3193,7 @@ public class MainActivity extends Activity {
     @Override // android.app.Activity, android.view.Window.Callback
     public boolean dispatchTouchEvent(MotionEvent motionEvent) {
         boolean z = this.mailView != null && this.mailView.getVisibility() == 0;
-        boolean z2 = this.mediaHub != null && this.mediaHub.getVisibility() == 0;
+        boolean z2 = (this.mediaHub != null && this.mediaHub.getVisibility() == 0) || (this.mangaCafe != null && this.mangaCafe.getVisibility() == 0);
         if (!this.drawerOpen && !z && !z2) {
             if (this.homeGd != null) {
                 this.homeGd.onTouchEvent(motionEvent);
@@ -3130,6 +3297,9 @@ public class MainActivity extends Activity {
 
     @Override // android.app.Activity
     public void onBackPressed() {
+        if (this.mangaCafe != null && this.mangaCafe.handleBack()) {
+            return;
+        }
         if (this.mediaHub == null || !this.mediaHub.handleBack()) {
             if (this.mailView == null || !this.mailView.handleBack()) {
                 if (this.addModeCat != null) {
@@ -3145,6 +3315,7 @@ public class MainActivity extends Activity {
     public void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);
         applyFoldLayout();
+        buildQuickRow();
         if (this.root != null && this.drawerLayer != null && !this.drawerOpen) {
             this.root.post(new Runnable() { // reset closed-drawer offset for the new screen size
                 @Override // java.lang.Runnable

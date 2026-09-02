@@ -22,6 +22,7 @@ public class GlyphView extends View {
     public static final int WEB = 3;
     public static final int CAM = 4;
     public static final int TV = 5;
+    public static final int BOOK = 7;   // manga cafe (open book)
 
     private static final int TILE_BG = 0xF00A0E16;
 
@@ -332,6 +333,28 @@ public class GlyphView extends View {
                 // tuning dial (lower right)
                 c.drawCircle(cx + s * 0.67f, cy + s * 0.42f, s * 0.17f, hole);
                 c.drawCircle(cx + s * 0.67f, cy + s * 0.42f, s * 0.07f, fill);
+                break;
+            }
+            case BOOK: {
+                // open book: two page-arcs meeting at a center spine
+                p.reset();
+                p.moveTo(cx, cy - s * 0.74f);
+                p.quadTo(cx - s * 0.5f, cy - s * 0.96f, cx - s * 1.08f, cy - s * 0.7f);
+                p.lineTo(cx - s * 1.08f, cy + s * 0.76f);
+                p.quadTo(cx - s * 0.5f, cy + s * 0.52f, cx, cy + s * 0.7f);
+                p.close();
+                c.drawPath(p, fill);
+                p.reset();
+                p.moveTo(cx, cy - s * 0.74f);
+                p.quadTo(cx + s * 0.5f, cy - s * 0.96f, cx + s * 1.08f, cy - s * 0.7f);
+                p.lineTo(cx + s * 1.08f, cy + s * 0.76f);
+                p.quadTo(cx + s * 0.5f, cy + s * 0.52f, cx, cy + s * 0.7f);
+                p.close();
+                c.drawPath(p, fill);
+                hole.setStyle(Paint.Style.STROKE);
+                hole.setStrokeWidth(s * 0.11f);
+                c.drawLine(cx, cy - s * 0.7f, cx, cy + s * 0.66f, hole);
+                hole.setStyle(Paint.Style.FILL);
                 break;
             }
         }

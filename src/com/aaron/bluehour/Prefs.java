@@ -128,6 +128,26 @@ public class Prefs {
                 .putString("media_apps", TextUtils.join("|", l)).apply();
     }
 
+    // ----- manga cafe (fold, unfolded): attached reader apps, ordered -----
+    public List<String> readerApps() {
+        String v = sp.getString("reader_apps", "");
+        List<String> out = new ArrayList<String>();
+        if (!TextUtils.isEmpty(v)) out.addAll(Arrays.asList(v.split("\\|")));
+        return out;
+    }
+
+    public void addReaderApp(String pkg) {
+        List<String> l = readerApps();
+        if (!l.contains(pkg)) { l.add(pkg); sp.edit()
+                .putString("reader_apps", TextUtils.join("|", l)).apply(); }
+    }
+
+    public void removeReaderApp(String pkg) {
+        List<String> l = readerApps();
+        if (l.remove(pkg)) sp.edit()
+                .putString("reader_apps", TextUtils.join("|", l)).apply();
+    }
+
     // ----- dock quick slots (0..4); "" = built-in default -----
     public String quickSlot(int i) {
         return sp.getString("quick_" + i, "");
