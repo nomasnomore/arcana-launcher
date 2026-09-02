@@ -918,7 +918,8 @@ public class MainActivity extends Activity {
         int[] iArr = {0, 1, 2, 3, 4};
         String[] strArr = {"PHONE", "MESSAGES", "YOUTUBE", "CHROME", "CAMERA"};
         String[] strArr2 = {"電話", "メッセージ", "ユーチューブ", "クローム", "カメラ"};
-        for (final int i = 0; i < 5; i++) {
+        for (int i0 = 0; i0 < 5; i0++) {
+            final int i = i0;
             final String quickSlot = this.prefs.quickSlot(i);
             String defaultQuickPkg = quickSlot.length() > 0 ? quickSlot : defaultQuickPkg(i);
             if (quickSlot.length() > 0) {
@@ -2107,7 +2108,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, Ui.dpi(this, 360.0f));
         layoutParams2.topMargin = Ui.dpi(this, 8.0f);
         linearLayout.addView(scrollView, layoutParams2);
-        final ArrayList arrayList = new ArrayList(this.apps);
+        final ArrayList<AppEntry> arrayList = new ArrayList<AppEntry>(this.apps);
         Collections.sort(arrayList, new Comparator<AppEntry>() { // from class: com.aaron.bluehour.MainActivity.21
             @Override // java.util.Comparator
             public int compare(AppEntry appEntry, AppEntry appEntry2) {
@@ -2136,18 +2137,18 @@ public class MainActivity extends Activity {
                             }
                         });
                         LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(-1, -2);
-                        layoutParams3.topMargin = Ui.dpi(this, 7.0f);
+                        layoutParams3.topMargin = Ui.dpi(MainActivity.this, 7.0f);
                         linearLayout2.addView(dialogRow, layoutParams3);
                         i++;
                     }
                 }
                 if (i == 0) {
-                    TextView textView2 = new TextView(this);
-                    textView2.setTypeface(Ui.tfUpright(this));
+                    TextView textView2 = new TextView(MainActivity.this);
+                    textView2.setTypeface(Ui.tfUpright(MainActivity.this));
                     textView2.setTextSize(2, 14.0f);
                     textView2.setTextColor(-1711276033);
                     textView2.setText(lowerCase.length() > 0 ? "NO MATCHES" : "ALL APPS ADDED");
-                    textView2.setPadding(Ui.dpi(this, 8.0f), Ui.dpi(this, 16.0f), 0, 0);
+                    textView2.setPadding(Ui.dpi(MainActivity.this, 8.0f), Ui.dpi(MainActivity.this, 16.0f), 0, 0);
                     linearLayout2.addView(textView2);
                 }
             }
