@@ -3145,6 +3145,19 @@ public class MainActivity extends Activity {
     public void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);
         applyFoldLayout();
+        if (this.root != null && this.drawerLayer != null && !this.drawerOpen) {
+            this.root.post(new Runnable() { // reset closed-drawer offset for the new screen size
+                @Override // java.lang.Runnable
+                public void run() {
+                    if (!MainActivity.this.drawerOpen) {
+                        MainActivity.this.drawerPos = 0.0f;
+                        MainActivity.this.drawerLayer.setTranslationY(MainActivity.this.root.getHeight());
+                        MainActivity.this.homeLayer.setTranslationY(0.0f);
+                        MainActivity.this.homeLayer.setAlpha(1.0f);
+                    }
+                }
+            });
+        }
     }
 
     @Override // android.app.Activity
