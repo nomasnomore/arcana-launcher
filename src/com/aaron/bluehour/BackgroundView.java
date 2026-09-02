@@ -1,143 +1,179 @@
 package com.aaron.bluehour;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Shader;
 import android.view.View;
+import java.io.File;
+import java.util.Objects;
 
-/**
- * v6 backdrop — deliberately plain: a clean royal-blue field (stand-in
- * for Aaron's own wallpaper later), plus the drawer's white card, which
- * is UI, not wallpaper. When user wallpapers land, drawHome() becomes a
- * bitmap draw with defined safe zones for the UI elements.
- */
+/* loaded from: classes.dex */
 public class BackgroundView extends View {
-
-    private final Paint skyPaint = new Paint();
-    private final Paint scrimPaint = new Paint();
-    private final Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint accentPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    private Path card;
     private Path accent;
-    private float drawerProgress = 0f;
-    private boolean darkHour = false;
-    private final Paint dhPaint = new Paint();
+    private final Paint accentPaint;
+    private Path card;
+    private final Paint cardPaint;
+    private boolean darkHour;
+    private final Paint dhPaint;
+    private float drawerProgress;
+    private final Paint scrimPaint;
+    private final Paint skyPaint;
+    private Bitmap wpLandscape;
+    private final Matrix wpMatrix;
+    private final Paint wpPaint;
+    private Bitmap wpPortrait;
 
-    public BackgroundView(Context c) {
-        super(c);
-        Theme t = Theme.get();
-        scrimPaint.setColor(0xFF000000);
-        cardPaint.setColor(t.cardFace);
-        accentPaint.setColor(t.cardAccent);
+    public BackgroundView(Context context) {
+        super(context);
+        this.skyPaint = new Paint();
+        this.scrimPaint = new Paint();
+        this.cardPaint = new Paint(1);
+        this.accentPaint = new Paint(1);
+        this.drawerProgress = 0.0f;
+        this.darkHour = false;
+        this.dhPaint = new Paint();
+        this.wpPaint = new Paint(2);
+        this.wpMatrix = new Matrix();
+        Theme theme = Theme.get();
+        this.scrimPaint.setColor(-16777216);
+        this.cardPaint.setColor(theme.cardFace);
+        this.accentPaint.setColor(theme.cardAccent);
     }
 
-    public void setDrawerProgress(float p) {
-        drawerProgress = p;
-        invalidate();
+    private Bitmap loadWp(String str) {
+        int i = 1;
+        try {
+            File file = new File(getContext().getFilesDir(), str);
+            if (!file.exists()) {
+                return null;
+            }
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+            while (Math.max(options.outWidth, options.outHeight) / i > 2048) {
+                i *= 2;
+            }
+            BitmapFactory.Options options2 = new BitmapFactory.Options();
+            options2.inSampleSize = i;
+            return BitmapFactory.decodeFile(file.getAbsolutePath(), options2);
+        } catch (Throwable th) {
+            return null;
+        }
     }
 
-    public void setDarkHour(boolean dh) {
-        darkHour = dh;
-        dhPaint.setColor(Theme.get().darkHourWash); // sickly green wash
-        invalidate();
+    @Override // android.view.View
+    protected void onDraw(Canvas canvas) {
+        int width = getWidth();
+        int height = getHeight();
+        float f = this.drawerProgress;
+        Bitmap bitmap = width > height ? this.wpLandscape : this.wpPortrait;
+        if (bitmap != null && bitmap.getWidth() > 0 && bitmap.getHeight() > 0) {
+            float width2 = bitmap.getWidth();
+            float height2 = bitmap.getHeight();
+            float max = Math.max(width / width2, height / height2);
+            this.wpMatrix.setScale(max, max);
+            this.wpMatrix.postTranslate((width - (width2 * max)) / 2.0f, (height - (height2 * max)) / 2.0f);
+            canvas.drawBitmap(bitmap, this.wpMatrix, this.wpPaint);
+        }
+        if (this.darkHour) {
+            canvas.drawRect(0.0f, 0.0f, width, height, this.dhPaint);
+        }
+        if (f > 0.0f) {
+            this.scrimPaint.setAlpha((int) (150.0f * f));
+            canvas.drawRect(0.0f, 0.0f, width, height, this.scrimPaint);
+            canvas.save();
+            canvas.translate(0.0f, (1.0f - f) * height);
+            if (this.card != null) {
+                canvas.drawPath(this.card, this.cardPaint);
+                canvas.drawPath(this.accent, this.accentPaint);
+            }
+            if (f < 0.995f) {
+                float sin = (float) Math.sin(f * 3.141592653589793d);
+                float f2 = height * 0.32f;
+                float f3 = width * 0.22f;
+                Path path = new Path();
+                path.moveTo(0.0f, -f2);
+                path.lineTo(width, (-f2) - f3);
+                path.lineTo(width, (-f3) * 0.3f);
+                path.lineTo(0.0f, 0.0f);
+                path.close();
+                Theme theme = Theme.get();
+                Paint paint = new Paint(1);
+                paint.setColor(theme.accent);
+                paint.setAlpha((int) (sin * 255.0f));
+                canvas.drawPath(path, paint);
+                Path path2 = new Path();
+                float dp = Ui.dp(getContext(), 12.0f);
+                path2.moveTo(0.0f, (-f2) - (dp * 2.2f));
+                path2.lineTo(width, ((-f2) - f3) - (dp * 2.2f));
+                path2.lineTo(width, ((-f2) - f3) - dp);
+                path2.lineTo(0.0f, (-f2) - dp);
+                path2.close();
+                Paint paint2 = new Paint(1);
+                paint2.setColor(theme.accentBright);
+                paint2.setAlpha((int) (230.0f * sin));
+                canvas.drawPath(path2, paint2);
+                Paint paint3 = new Paint(1);
+                paint3.setColor(-1);
+                paint3.setStrokeWidth(Ui.dp(getContext(), 3.0f));
+                paint3.setStyle(Paint.Style.STROKE);
+                paint3.setAlpha((int) (sin * 255.0f));
+                canvas.drawLine(0.0f, -f2, width, (-f2) - f3, paint3);
+            }
+            canvas.restore();
+        }
     }
 
-    @Override
-    protected void onSizeChanged(int w, int h, int ow, int oh) {
-        super.onSizeChanged(w, h, ow, oh);
-        if (w == 0 || h == 0) return;
-
-        // plain field, faint vertical falloff so it isn't dead flat.
-        // (Only visible if the user has no wallpaper set; still themed.)
-        Theme t = Theme.get();
-        skyPaint.setShader(new LinearGradient(0, 0, 0, h,
-                new int[]{t.bgTop, t.bgMid, t.bgBot},
-                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-
-        float m = Ui.dp(getContext(), 7);
-        card = new Path();
-        card.moveTo(m, h * 0.030f);
-        card.lineTo(w - m, h * 0.012f);
-        card.lineTo(w - m, h + 10);
-        card.lineTo(m, h + 10);
-        card.close();
-
-        accent = new Path();
-        accent.moveTo(m, h * 0.955f);
-        accent.lineTo(w - m, h * 0.905f);
-        accent.lineTo(w - m, h * 0.940f);
-        accent.lineTo(m, h * 0.990f);
-        accent.close();
-        // P4: the drawer accent bar goes full rainbow
+    @Override // android.view.View
+    protected void onSizeChanged(int i, int i2, int i3, int i4) {
+        super.onSizeChanged(i, i2, i3, i4);
+        if (i == 0 || i2 == 0) {
+            return;
+        }
+        Theme theme = Theme.get();
+        this.skyPaint.setShader(new LinearGradient(0.0f, 0.0f, 0.0f, i2, new int[]{theme.bgTop, theme.bgMid, theme.bgBot}, new float[]{0.0f, 0.55f, 1.0f}, Shader.TileMode.CLAMP));
+        float dp = Ui.dp(getContext(), 7.0f);
+        this.card = new Path();
+        this.card.moveTo(dp, i2 * 0.03f);
+        this.card.lineTo(i - dp, i2 * 0.012f);
+        this.card.lineTo(i - dp, i2 + 10);
+        this.card.lineTo(dp, i2 + 10);
+        this.card.close();
+        this.accent = new Path();
+        this.accent.moveTo(dp, i2 * 0.955f);
+        this.accent.lineTo(i - dp, i2 * 0.905f);
+        this.accent.lineTo(i - dp, i2 * 0.94f);
+        this.accent.lineTo(dp, i2 * 0.99f);
+        this.accent.close();
         if (Theme.get().rainbow) {
-            accentPaint.setShader(new LinearGradient(m, 0, w - m, 0,
-                    Theme.RAINBOW, null, Shader.TileMode.CLAMP));
+            this.accentPaint.setShader(new LinearGradient(dp, 0.0f, i - dp, 0.0f, Theme.RAINBOW, (float[]) null, Shader.TileMode.CLAMP));
         } else {
-            accentPaint.setShader(null);
+            this.accentPaint.setShader(null);
         }
     }
 
-    @Override
-    protected void onDraw(Canvas c) {
-        int w = getWidth();
-        int h = getHeight();
-        float p = drawerProgress;
+    public void reloadWallpapers() {
+        this.wpPortrait = loadWp("wallpaper_portrait.jpg");
+        this.wpLandscape = loadWp("wallpaper_landscape.jpg");
+        invalidate();
+    }
 
-        // home backdrop is the SYSTEM WALLPAPER (windowShowWallpaper) —
-        // nothing painted here, so the user's art shows through
-        if (darkHour) {
-            c.drawRect(0, 0, w, h, dhPaint); // the world goes green at midnight
-        }
-        if (p > 0f) {
-            scrimPaint.setAlpha((int) (p * 150));
-            c.drawRect(0, 0, w, h, scrimPaint);
-            c.save();
-            c.translate(0, (1f - p) * h);
-            if (card != null) {
-                c.drawPath(card, cardPaint);
-                c.drawPath(accent, accentPaint);
-            }
-            // blue slash wipe riding the card's leading edge mid-transition
-            if (p < 0.995f) {
-                float wave = (float) Math.sin(p * Math.PI);
-                float bandH = h * 0.32f;
-                float skew = w * 0.22f;
-                Path sweep = new Path();
-                sweep.moveTo(0, -bandH);
-                sweep.lineTo(w, -bandH - skew);
-                sweep.lineTo(w, -skew * 0.3f);
-                sweep.lineTo(0, 0);
-                sweep.close();
-                Theme th = Theme.get();
-                Paint sp = new Paint(Paint.ANTI_ALIAS_FLAG);
-                sp.setColor(th.accent);
-                sp.setAlpha((int) (wave * 255));
-                c.drawPath(sweep, sp);
-                // bright echo band above the accent
-                Path echo = new Path();
-                float eh = Ui.dp(getContext(), 12);
-                echo.moveTo(0, -bandH - eh * 2.2f);
-                echo.lineTo(w, -bandH - skew - eh * 2.2f);
-                echo.lineTo(w, -bandH - skew - eh);
-                echo.lineTo(0, -bandH - eh);
-                echo.close();
-                Paint ep = new Paint(Paint.ANTI_ALIAS_FLAG);
-                ep.setColor(th.accentBright);
-                ep.setAlpha((int) (wave * 230));
-                c.drawPath(echo, ep);
-                // white leading hairline for snap
-                Paint hp = new Paint(Paint.ANTI_ALIAS_FLAG);
-                hp.setColor(0xFFFFFFFF);
-                hp.setStrokeWidth(Ui.dp(getContext(), 3f));
-                hp.setStyle(Paint.Style.STROKE);
-                hp.setAlpha((int) (wave * 255));
-                c.drawLine(0, -bandH, w, -bandH - skew, hp);
-            }
-            c.restore();
-        }
+    public void setDarkHour(boolean z) {
+        this.darkHour = z;
+        Paint paint = this.dhPaint;
+        Objects.requireNonNull(Theme.get());
+        paint.setColor(774881146);
+        invalidate();
+    }
+
+    public void setDrawerProgress(float f) {
+        this.drawerProgress = f;
+        invalidate();
     }
 }
